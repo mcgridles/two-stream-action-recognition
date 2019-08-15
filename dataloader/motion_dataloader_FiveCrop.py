@@ -32,6 +32,12 @@ class motion_dataset(Dataset):
         self.in_channel = in_channel
         self.img_rows=224
         self.img_cols=224
+        
+
+        self.fiveCrops = True if self.mode == "train" else False
+        
+        self.ncrops = 5 if self.fiveCrops else 1
+
 
     def stackopf(self):
         name = 'v_'+self.video
@@ -42,10 +48,10 @@ class motion_dataset(Dataset):
         u = self.root_dir+ 'u/' + name
         v = self.root_dir+ 'v/'+ name
         
-        flow = torch.FloatTensor(2*self.in_channel,self.img_rows,self.img_cols)
+        flow = torch.FloatTensor(self.ncrops, 2*self.in_channel,self.img_rows,self.img_cols)
         i = int(self.clips_idx)
 
-        seed = np.random.randint(0,50000,1)[0]
+        seed = np.random.randint(0,20000,1)[0]
 
         for j in range(self.in_channel):
             idx = i + j
@@ -57,18 +63,23 @@ class motion_dataset(Dataset):
             
             imgH=(Image.open(h_image))
             imgV=(Image.open(v_image))
-
+            
             random.seed(seed)
             H = self.transform(imgH)
             random.seed(seed)
             V = self.transform(imgV)
 
-            
-            flow[2*(j-1),:,:] = H
-            flow[2*(j-1)+1,:,:] = V      
+            if self.fiveCrops:
+                flow[:, 2 * (j - 1), :, :] = H.squeeze()
+                flow[:, 2 * (j - 1) + 1, :, :] = V.squeeze()
+            else:
+                flow[:, 2 * (j - 1), :, :] = H
+                flow[:, 2 * (j - 1) + 1, :, :] = V
+
             imgH.close()
-            imgV.close()  
-        return flow
+            imgV.close()
+
+        return flow.squeeze()
 
     def __len__(self):
         return len(self.keys)
@@ -95,6 +106,10 @@ class motion_dataset(Dataset):
         else:
             raise ValueError('There are only train and val mode')
         return sample
+
+
+
+
 
 class Motion_DataLoader():
     def __init__(self, BATCH_SIZE, num_workers, in_channel,  path, ucf_list, ucf_split):
@@ -157,12 +172,12 @@ class Motion_DataLoader():
         training_set = motion_dataset(dic=self.dic_video_train, in_channel=self.in_channel, root_dir=self.data_path,
             mode='train',
             transform = transforms.Compose([
-            transforms.Resize([224,224]),
-            #transforms.RandomCrop(224),
-            #transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
+            transforms.Resize(256),
+            transforms.FiveCrop([224,224]),
+            transforms.Lambda(lambda crops: torch.stack([transforms.ToTensor()(crop) for crop in crops]))
             ]))
-        print('==> Training data :',len(training_set),' videos',training_set[1][0].size())
+        
+        print('==> Training data :',len(training_set))
 
         train_loader = DataLoader(
             dataset=training_set, 
@@ -181,7 +196,7 @@ class Motion_DataLoader():
             transforms.Resize([224,224]),
             transforms.ToTensor(),
             ]))
-        print('==> Validation data :',len(validation_set),' frames',validation_set[1][1].size())
+        print('==> Validation data :',len(validation_set))
         #print validation_set[1]
 
         val_loader = DataLoader(

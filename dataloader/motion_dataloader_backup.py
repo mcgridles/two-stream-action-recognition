@@ -17,7 +17,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from split_train_test_video import *
  
-import random
 import re
  
 class motion_dataset(Dataset):  
@@ -45,7 +44,6 @@ class motion_dataset(Dataset):
         flow = torch.FloatTensor(2*self.in_channel,self.img_rows,self.img_cols)
         i = int(self.clips_idx)
 
-        seed = np.random.randint(0,50000,1)[0]
 
         for j in range(self.in_channel):
             idx = i + j
@@ -58,9 +56,7 @@ class motion_dataset(Dataset):
             imgH=(Image.open(h_image))
             imgV=(Image.open(v_image))
 
-            random.seed(seed)
             H = self.transform(imgH)
-            random.seed(seed)
             V = self.transform(imgV)
 
             
@@ -95,6 +91,10 @@ class motion_dataset(Dataset):
         else:
             raise ValueError('There are only train and val mode')
         return sample
+
+
+
+
 
 class Motion_DataLoader():
     def __init__(self, BATCH_SIZE, num_workers, in_channel,  path, ucf_list, ucf_split):
@@ -158,8 +158,6 @@ class Motion_DataLoader():
             mode='train',
             transform = transforms.Compose([
             transforms.Resize([224,224]),
-            #transforms.RandomCrop(224),
-            #transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             ]))
         print('==> Training data :',len(training_set),' videos',training_set[1][0].size())

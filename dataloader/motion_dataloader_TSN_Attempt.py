@@ -17,7 +17,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from split_train_test_video import *
  
-import random
 import re
  
 class motion_dataset(Dataset):  
@@ -33,6 +32,7 @@ class motion_dataset(Dataset):
         self.img_rows=224
         self.img_cols=224
 
+
     def stackopf(self):
         name = 'v_'+self.video
         
@@ -45,7 +45,7 @@ class motion_dataset(Dataset):
         flow = torch.FloatTensor(2*self.in_channel,self.img_rows,self.img_cols)
         i = int(self.clips_idx)
 
-        seed = np.random.randint(0,50000,1)[0]
+        seed = int(np.random.randint(1,20000,1))
 
         for j in range(self.in_channel):
             idx = i + j
@@ -53,11 +53,10 @@ class motion_dataset(Dataset):
             frame_idx = 'frame'+ idx.zfill(6)
             h_image = u +'/' + frame_idx +'.jpg'
             v_image = v +'/' + frame_idx +'.jpg'
-            
-            
+
             imgH=(Image.open(h_image))
             imgV=(Image.open(v_image))
-
+            
             random.seed(seed)
             H = self.transform(imgH)
             random.seed(seed)
@@ -78,7 +77,13 @@ class motion_dataset(Dataset):
         
         if self.mode == 'train':
             self.video, nb_clips = self.keys[idx].split('-')
-            self.clips_idx = random.randint(1,int(nb_clips))
+            #self.clips_idx = random.randint(1,int(nb_clips))
+            nb_clips = int(nb_clips)
+            clips = []
+            clips.append(np.random.randint(1, nb_clips/3))
+            clips.append(np.random.randint(nb_clips/3, nb_clips*2/3))
+            clips.append(np.random.randint(nb_clips*2/3, nb_clips+1))
+            
         elif self.mode == 'val':
             self.video,self.clips_idx = self.keys[idx].split('-')
         else:
@@ -86,15 +91,25 @@ class motion_dataset(Dataset):
 
         label = self.values[idx]
         label = int(label)-1 
-        data = self.stackopf()
 
         if self.mode == 'train':
+            data = {}
+            for i in range(len(clips)):
+                key = 'img'+str(i)
+                self.clips_idx = clips[i]
+                data[key] = self.stackopf()
+                
             sample = (data,label)
         elif self.mode == 'val':
+            data = self.stackopf()
             sample = (self.video,data,label)
         else:
             raise ValueError('There are only train and val mode')
         return sample
+
+
+
+
 
 class Motion_DataLoader():
     def __init__(self, BATCH_SIZE, num_workers, in_channel,  path, ucf_list, ucf_split):
@@ -157,12 +172,11 @@ class Motion_DataLoader():
         training_set = motion_dataset(dic=self.dic_video_train, in_channel=self.in_channel, root_dir=self.data_path,
             mode='train',
             transform = transforms.Compose([
-            transforms.Resize([224,224]),
-            #transforms.RandomCrop(224),
-            #transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(224),
+            #transforms.Resize([224,224]),
             transforms.ToTensor(),
             ]))
-        print('==> Training data :',len(training_set),' videos',training_set[1][0].size())
+        print('==> Training data :',len(training_set))
 
         train_loader = DataLoader(
             dataset=training_set, 

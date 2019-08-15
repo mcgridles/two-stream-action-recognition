@@ -102,14 +102,9 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, nb_classes=101, channel=20,p=0):
+    def __init__(self, block, layers, nb_classes=101, channel=20):
         self.inplanes = 64
         super(ResNet, self).__init__()
-        
-        self.dropout = nn.Dropout(p=.7)
-        # dropout was .3
-        self.dropout2d = nn.Dropout2d(p=.3)
-        
         self.conv1_custom = nn.Conv2d(channel, 64, kernel_size=7, stride=2, padding=3,   
                                bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -153,30 +148,12 @@ class ResNet(nn.Module):
         x = self.maxpool(x)
 
         x = self.layer1(x)
-        
-        # MLP 
-        x = self.dropout2d(x)
-        
         x = self.layer2(x)
-        
-        # MLP
-        x = self.dropout2d(x)
-        
         x = self.layer3(x)
-        
-        # MLP
-        x = self.dropout2d(x)
-        
         x = self.layer4(x)
-        
-        # MLP
-        self.dropout2d(x)
-        
-        # MLP
+
         x = self.avgpool(x)
-        
         x = x.view(x.size(0), -1)
-        #x = self.dropout(x)
         out = self.fc_custom(x)
         return out
 
@@ -217,7 +194,7 @@ def resnet50(pretrained=False, channel= 20, **kwargs):
     return model
 
 
-def resnet101(pretrained=False, channel=20, **kwargs):
+def resnet101(pretrained=False, channel= 20, **kwargs):
 
     model = ResNet(Bottleneck, [3, 4, 23, 3],nb_classes=101, channel=channel, **kwargs)
     if pretrained:
@@ -229,16 +206,11 @@ def resnet101(pretrained=False, channel=20, **kwargs):
     return model
 
 
-def resnet152(pretrained=False,channel=20,**kwargs):
+def resnet152(pretrained=False, **kwargs):
 
-    model = ResNet(Bottleneck, [3, 8, 36, 3],nb_classes=101,channel=channel, **kwargs)
-    
+    model = ResNet(Bottleneck, [3, 8, 36, 3], **kwargs)
     if pretrained:
-       pretrain_dict = model_zoo.load_url(model_urls['resnet152'])                  # modify pretrain code
-       model_dict = model.state_dict()
-       model_dict=weight_transform(model_dict, pretrain_dict, channel)
-       model.load_state_dict(model_dict)
-       
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
     return model
 
 def cross_modality_pretrain(conv1_weight, channel):
