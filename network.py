@@ -155,22 +155,22 @@ class ResNet(nn.Module):
         x = self.layer1(x)
         
         # MLP 
-        x = self.dropout2d(x)
+        #x = self.dropout2d(x)
         
         x = self.layer2(x)
         
         # MLP
-        x = self.dropout2d(x)
+        #x = self.dropout2d(x)
         
         x = self.layer3(x)
         
         # MLP
-        x = self.dropout2d(x)
+        #x = self.dropout2d(x)
         
         x = self.layer4(x)
         
         # MLP
-        self.dropout2d(x)
+        #self.dropout2d(x)
         
         # MLP
         x = self.avgpool(x)
