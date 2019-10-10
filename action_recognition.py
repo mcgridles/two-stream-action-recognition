@@ -47,16 +47,27 @@ class SpatialCNN:
 
             self.model.eval()
 
+    def run_async(self, img_queue, pred_queue):
+        with TimerBlock('Starting spatial network') as block:
+            while True:
+                img = img_queue.get(block=True)
+                if type(img) != np.ndarray:
+                    # Break out of loop when signal received
+                    block.log('Spatial network exiting')
+                    break
+
+                preds = self.run(img)
+                pred_queue.put(preds)
+
     def run(self, img):
-        with TimerBlock('Performing spatial inference') as block:
-            img = np.resize(img, self.img_size)
-            img = self.transform(img).unsqueeze(0)
+        img = np.resize(img, self.img_size)
+        img = self.transform(img).unsqueeze(0)
 
-            with torch.no_grad():
-                output = self.model(img.cuda())
-                preds = output.data.cpu().numpy()
+        with torch.no_grad():
+            output = self.model(img.cuda())
+            preds = output.data.cpu().numpy()
 
-            return preds
+        return preds
 
 
 class MotionCNN:
@@ -96,15 +107,26 @@ class MotionCNN:
 
             self.model.eval()
 
-    def run(self, flow):
+    def run_async(self, flow_queue, pred_queue):
         with TimerBlock('Performing temporal inference') as block:
-            flow = np.resize(flow, self.img_size)
-            for i in range(flow.shape[0]):
-                flow[i,:,:] = self.transform(np.uint8(flow[i,:,:]))
-            flow = torch.from_numpy(flow).unsqueeze(0)
+            while True:
+                flow = flow_queue.get(block=True)
+                if type(flow) != np.ndarray:
+                    # Break out of loop when signal received
+                    block.log('Temporal network exiting')
+                    break
 
-            with torch.no_grad():
-                output = self.model(flow.type(torch.FloatTensor).cuda())
-                preds = output.data.cpu().numpy()
+                preds = self.run(flow)
+                pred_queue.put(preds)
 
-            return preds
+    def run(self, flow):
+        flow = np.resize(flow, self.img_size)
+        for i in range(flow.shape[0]):
+            flow[i,:,:] = self.transform(np.uint8(flow[i,:,:]))
+        flow = torch.from_numpy(flow).unsqueeze(0)
+
+        with torch.no_grad():
+            output = self.model(flow.type(torch.FloatTensor).cuda())
+            preds = output.data.cpu().numpy()
+
+        return preds

@@ -109,7 +109,6 @@ class TimerBlock:
         else:
             self.log("Operation finished\n")
 
-
     def log(self, string):
         duration = time.clock() - self.start
         units = 's'
@@ -122,5 +121,3 @@ class TimerBlock:
         fid = open(fid, 'a')
         fid.write("%s\n"%(string))
         fid.close()
-
-
