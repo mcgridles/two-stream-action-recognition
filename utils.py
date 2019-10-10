@@ -85,6 +85,42 @@ def record_info(info,filename,mode):
     if not os.path.isfile(filename):
         df.to_csv(filename,index=False,columns=column_names)
     else: # else it exists so append without writing the header
-        df.to_csv(filename,mode = 'a',header=False,index=False,columns=column_names)   
+        df.to_csv(filename,mode = 'a',header=False,index=False,columns=column_names)
+
+
+class TimerBlock:
+    """
+    From FlowNet2-PyTorch repo.
+    """
+
+    def __init__(self, title):
+        print(("{}".format(title)))
+
+    def __enter__(self):
+        self.start = time.clock()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.end = time.clock()
+        self.interval = self.end - self.start
+
+        if exc_type is not None:
+            self.log("Operation failed\n")
+        else:
+            self.log("Operation finished\n")
+
+
+    def log(self, string):
+        duration = time.clock() - self.start
+        units = 's'
+        if duration > 60:
+            duration = duration / 60.
+            units = 'm'
+        print(("  [{:.3f}{}] {}".format(duration, units, string)))
+    
+    def log2file(self, fid, string):
+        fid = open(fid, 'a')
+        fid.write("%s\n"%(string))
+        fid.close()
 
 
