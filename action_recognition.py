@@ -13,6 +13,7 @@ class SpatialCNN:
     Arguments:
         --spatial_weights (str) -> Path to spatial weights checkpoint
         --image_size (tuple(int)) -> Desired image size, default=(224,224)
+        --cuda (bool) -> Attempt to use CUDA if true
         --number_gpus (int) -> Number of GPUs to use, default=-1
     """
 
@@ -34,7 +35,7 @@ class SpatialCNN:
     def load(self):
         with TimerBlock('Building spatial model') as block:
             # Build model
-            if self.args.number_gpus > 0:
+            if self.args.cuda and self.args.number_gpus > 0:
                 self.model = resnet101(pretrained=True, channel=3).cuda()
             else:
                 self.model = resnet101(pretrained=True, channel=3)
@@ -71,7 +72,7 @@ class SpatialCNN:
         img = self.transform(img).unsqueeze(0)
 
         with torch.no_grad():
-            if self.args.number_gpus > 0:
+            if self.args.cuda and self.args.number_gpus > 0:
                 img = img.cuda()
 
             output = self.model(img)
@@ -87,6 +88,7 @@ class MotionCNN:
     Arguments:
         --motion_weights (str) -> Path to motion weights checkpoint
         --image_size (tuple(int)) -> Desired image size, default=(224,224)
+        --cuda (bool) -> Attempt to use CUDA if true
         --number_gpus (int) -> Number of GPUs to use, default=-1
     """
     
@@ -107,7 +109,7 @@ class MotionCNN:
     def load(self):
         with TimerBlock('Building temporal model') as block:
             # Build model
-            if self.args.number_gpus > 0:
+            if self.args.cuda and self.args.number_gpus > 0:
                 self.model = resnet101(pretrained=True, channel=20).cuda()
             else:
                 self.model = resnet101(pretrained=True, channel=20)
@@ -146,7 +148,7 @@ class MotionCNN:
         flow = flow.type(torch.FloatTensor)
 
         with torch.no_grad():
-            if self.args.number_gpus > 0:
+            if self.args.cuda and self.args.number_gpus > 0:
                 flow = flow.cuda()
 
             output = self.model(flow)
