@@ -28,8 +28,6 @@ class SpatialCNN:
         self.load()
 
     def load(self):
-        print('Building spatial model')
-
         with TimerBlock('Building spatial model') as block:
             # Build model
             self.model = resnet101(pretrained=True, channel=3).cuda()
@@ -72,6 +70,7 @@ class MotionCNN:
         self.img_size = [20] + list(img_size)
 
         self.transform = transforms.Compose([
+            transforms.ToPILImage(),
             transforms.RandomCrop(224),
             transforms.ToTensor(),
             ])
