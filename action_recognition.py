@@ -1,6 +1,4 @@
 import os
-import time
-import cv2
 import torch
 import torchvision.transforms as transforms
 
@@ -11,12 +9,18 @@ from network import *
 class SpatialCNN:
     """
     Spatial network for two stream action recognition.
+
+    Arguments:
+        --spatial_weights (str) -> Path to spatial weights checkpoint
+        --image_size (tuple(int)) -> Desired image size, default=(224,224)
+        --number_gpus (int) -> Number of GPUs to use, default=-1
     """
 
-    def __init__(self, weights_path, img_size=(224,224)):
+    def __init__(self, args):
         self.model = None
-        self.weights = weights_path
-        self.img_size = list(img_size) + [3]
+        self.weights = args.spatial_weights
+        self.img_size = list(args.image_size[:2]) + [3]
+        self.args = args
 
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
@@ -30,7 +34,10 @@ class SpatialCNN:
     def load(self):
         with TimerBlock('Building spatial model') as block:
             # Build model
-            self.model = resnet101(pretrained=True, channel=3).cuda()
+            if self.args.number_gpus > 0:
+                self.model = resnet101(pretrained=True, channel=3).cuda()
+            else:
+                self.model = resnet101(pretrained=True, channel=3)
 
             # Load weights
             if os.path.isfile(self.weights):
@@ -64,7 +71,10 @@ class SpatialCNN:
         img = self.transform(img).unsqueeze(0)
 
         with torch.no_grad():
-            output = self.model(img.cuda())
+            if self.args.number_gpus > 0:
+                img = img.cuda()
+
+            output = self.model(img)
             preds = output.data.cpu().numpy()
 
         return preds
@@ -73,12 +83,18 @@ class SpatialCNN:
 class MotionCNN:
     """
     Temporal network for two stream action recognition.
+
+    Arguments:
+        --motion_weights (str) -> Path to motion weights checkpoint
+        --image_size (tuple(int)) -> Desired image size, default=(224,224)
+        --number_gpus (int) -> Number of GPUs to use, default=-1
     """
     
-    def __init__(self, weights_path, img_size=(224,224)):
+    def __init__(self, args):
         self.model = None
-        self.weights = weights_path
-        self.img_size = [20] + list(img_size)
+        self.weights = args.motion_weights
+        self.img_size = [20] + list(args.image_size[:2])
+        self.args = args
 
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
@@ -91,7 +107,10 @@ class MotionCNN:
     def load(self):
         with TimerBlock('Building temporal model') as block:
             # Build model
-            self.model = resnet101(pretrained=True, channel=20).cuda()
+            if self.args.number_gpus > 0:
+                self.model = resnet101(pretrained=True, channel=20).cuda()
+            else:
+                self.model = resnet101(pretrained=True, channel=20)
 
             if os.path.isfile(self.weights):
                 block.log("Loading weights '{}'".format(self.weights))
@@ -108,7 +127,7 @@ class MotionCNN:
             self.model.eval()
 
     def run_async(self, flow_queue, pred_queue):
-        with TimerBlock('Performing temporal inference') as block:
+        with TimerBlock('Starting temporal network') as block:
             while True:
                 flow = flow_queue.get(block=True)
                 if type(flow) != np.ndarray:
@@ -124,9 +143,13 @@ class MotionCNN:
         for i in range(flow.shape[0]):
             flow[i,:,:] = self.transform(np.uint8(flow[i,:,:]))
         flow = torch.from_numpy(flow).unsqueeze(0)
+        flow = flow.type(torch.FloatTensor)
 
         with torch.no_grad():
-            output = self.model(flow.type(torch.FloatTensor).cuda())
+            if self.args.number_gpus > 0:
+                flow = flow.cuda()
+
+            output = self.model(flow)
             preds = output.data.cpu().numpy()
 
         return preds
