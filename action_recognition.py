@@ -2,7 +2,7 @@ import os
 import torch
 import torchvision.transforms as transforms
 
-from utils import *
+from action_utils import *
 from network import *
 
 
@@ -25,7 +25,7 @@ class SpatialCNN:
 
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.RandomCrop(224),
+            transforms.Resize(224,224),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])
             ])
@@ -100,7 +100,7 @@ class MotionCNN:
 
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.RandomCrop(224),
+            transforms.Resize(224,224),
             transforms.ToTensor(),
             ])
 
