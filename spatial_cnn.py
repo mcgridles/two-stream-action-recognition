@@ -17,7 +17,7 @@ from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 import dataloader
-from utils import *
+from action_utils import *
 from network import *
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
