@@ -30,6 +30,9 @@ parser.add_argument('--evaluate', dest='evaluate', action='store_true', help='ev
 parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
 
+parser.add_argument('--nb-classes', default=101, type=int, metavar='N', help='Number of target classes to train')
+parser.add_argument('--finetune', default=0, type=int, metavar='N', help='1 to fine-tune, 0 to to train normally')
+
 def main():
     global arg
     arg = parser.parse_args()
@@ -55,13 +58,16 @@ def main():
                         evaluate=arg.evaluate,
                         train_loader=train_loader,
                         test_loader=test_loader,
-                        test_video=test_video
+                        test_video=test_video,
+                        nb_classes=arg.nb_classes, # added the nb_classes
+                        finetune=arg.finetune
     )
     #Training
     model.run()
 
 class Spatial_CNN():
-    def __init__(self, nb_epochs, lr, batch_size, resume, start_epoch, evaluate, train_loader, test_loader, test_video):
+    # add the nb_classes
+    def __init__(self, nb_epochs, lr, batch_size, resume, start_epoch, evaluate, train_loader, test_loader, test_video,nb_classes,finetune):
         self.nb_epochs=nb_epochs
         self.lr=lr
         self.batch_size=batch_size
@@ -72,11 +78,15 @@ class Spatial_CNN():
         self.test_loader=test_loader
         self.best_prec1=0
         self.test_video=test_video
+        
+        self.nb_classes = nb_classes
+        self.finetune = finetune
 
     def build_model(self):
         print('==> Build model and setup loss and optimizer')
         #build model
-        self.model = resnet101(pretrained= True, channel=3,p=.5).cuda()
+        # added in the nb_classes argument
+        self.model = resnet101(pretrained= True, channel=3,nb_classes=self.nb_classes,p=0).cuda()
         #Loss function and optimizer
         self.criterion = nn.CrossEntropyLoss().cuda()
         self.optimizer = torch.optim.SGD(self.model.parameters(), self.lr, momentum=0.9)
@@ -88,18 +98,39 @@ class Spatial_CNN():
             if os.path.isfile(self.resume):
                 print("==> loading checkpoint '{}'".format(self.resume))
                 checkpoint = torch.load(self.resume)
-                self.start_epoch = checkpoint['epoch']
-                self.best_prec1 = checkpoint['best_prec1']
-                self.model.load_state_dict(checkpoint['state_dict'])
-                self.optimizer.load_state_dict(checkpoint['optimizer'])
-                print("==> loaded checkpoint '{}' (epoch {}) (best_prec1 {})".format(self.resume, checkpoint['epoch'], self.best_prec1))
+                ## to finetune, or to not fine, tis the question
+                if not self.finetune:
+                  print("In Resume Training Mode\n")
+                  self.start_epoch = checkpoint['epoch']
+                  self.best_prec1 = checkpoint['best_prec1']
+                  self.model.load_state_dict(checkpoint['state_dict'])
+                  self.optimizer.load_state_dict(checkpoint['optimizer'])
+                  print("==> loaded checkpoint '{}' (epoch {}) (best_prec1 {})".format(self.resume, checkpoint['epoch'], self.best_prec1))
+                # Add in new state dict
+                else:
+                  print("--In Finetune mode--")
+                  pretrained_dict = checkpoint['state_dict']
+                  new_model_dict = self.model.state_dict()
+                  
+                  print("Delete last layer weights")
+                  
+                  del pretrained_dict["fc_custom.weight"]
+                  del pretrained_dict["fc_custom.bias"]
+                  
+                  print("Update last layer weights with ImageNet pretrained weights")
+                  pretrained_dict["fc_custom.weight"] = new_model_dict["fc_custom.weight"].clone()
+                  pretrained_dict["fc_custom.bias"] = new_model_dict["fc_custom.bias"].clone()          
+                  print("Sanity Check On Number of Classes : ",pretrained_dict["fc_custom.weight"].size()[0])
+                  self.model.load_state_dict(pretrained_dict)
+                   
+                  
             else:
                 print("==> no checkpoint found at '{}'".format(self.resume))
         if self.evaluate:
             self.epoch = 0
             prec1, val_loss = self.validate_1epoch()
             return
-
+ 
     def run(self):
         self.build_model()
         self.resume_and_evaluate()
