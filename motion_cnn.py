@@ -31,6 +31,9 @@ parser.add_argument('--evaluate', dest='evaluate', action='store_true', help='ev
 parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
 
+parser.add_argument('--nb-classes', default=101, type=int, metavar='N', help='Number of target classes to train')
+parser.add_argument('--finetune', default=0, type=int, metavar='N', help='1 to fine-tune, 0 to to train normally')
+
 def main():
     global arg
     arg = parser.parse_args()
@@ -67,7 +70,8 @@ def main():
     model.run()
 
 class Motion_CNN():
-    def __init__(self, nb_epochs, lr, batch_size, resume, start_epoch, evaluate, train_loader, test_loader, channel,test_video):
+    def __init__(self, nb_epochs, lr, batch_size, resume, start_epoch, evaluate, train_loader, test_loader, 
+                 channel, test_video, nb_classes, finetune):
         self.nb_epochs=nb_epochs
         self.lr=lr
         self.batch_size=batch_size
@@ -79,6 +83,9 @@ class Motion_CNN():
         self.best_prec1=0
         self.channel=channel
         self.test_video=test_video
+
+        self.nb_classes = nb_classes
+        self.finetune = finetune
 
     def build_model(self):
         print('==> Build model and setup loss and optimizer')
@@ -95,12 +102,29 @@ class Motion_CNN():
             if os.path.isfile(self.resume):
                 print("==> loading checkpoint '{}'".format(self.resume))
                 checkpoint = torch.load(self.resume)
-                self.start_epoch = checkpoint['epoch']
-                self.best_prec1 = checkpoint['best_prec1']
-                self.model.load_state_dict(checkpoint['state_dict'])
-                self.optimizer.load_state_dict(checkpoint['optimizer'])
-                print("==> loaded checkpoint '{}' (epoch {}) (best_prec1 {})"
-                  .format(self.resume, checkpoint['epoch'], self.best_prec1))
+
+                if not self.finetune:
+                    self.start_epoch = checkpoint['epoch']
+                    self.best_prec1 = checkpoint['best_prec1']
+                    self.model.load_state_dict(checkpoint['state_dict'])
+                    self.optimizer.load_state_dict(checkpoint['optimizer'])
+                else:
+                    # Add in new state dict
+                    print("==> finetune mode")
+                    pretrained_dict = checkpoint['state_dict']
+                    new_model_dict = self.model.state_dict()
+
+                    del pretrained_dict["fc_custom.weight"]
+                    del pretrained_dict["fc_custom.bias"]
+                    pretrained_dict["fc_custom.weight"] = new_model_dict["fc_custom.weight"].clone()
+                    pretrained_dict["fc_custom.bias"] = new_model_dict["fc_custom.bias"].clone()   
+                    self.model.load_state_dict(pretrained_dict)
+
+                assert self.model.state_dict()['fc_custom.weight'].size()[0] == self.nb_classes
+                print("==> loaded checkpoint '{}' (epoch {}) (best_prec1 {}) (classes {})".format(self.resume, 
+                                                                                                  checkpoint['epoch'], 
+                                                                                                  self.best_prec1, 
+                                                                                                  self.nb_classes))
             else:
                 print("==> no checkpoint found at '{}'".format(self.resume))
         if self.evaluate:
