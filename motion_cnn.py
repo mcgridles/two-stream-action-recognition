@@ -31,6 +31,9 @@ parser.add_argument('--evaluate', dest='evaluate', action='store_true', help='ev
 parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
 
+parser.add_argument('--nb-classes', default=101, type=int, metavar='N', help='Number of target classes to train')
+parser.add_argument('--finetune', default=0, type=int, metavar='N', help='1 to fine-tune, 0 to to train normally')
+
 def main():
     global arg
     arg = parser.parse_args()
@@ -40,8 +43,8 @@ def main():
     data_loader = dataloader.Motion_DataLoader(
                         BATCH_SIZE=arg.batch_size,
                         num_workers=8,
-                        path=r"/mnt/disks/datastorage/tvl1_flow/",
-                        ucf_list=r"/home/mlp/two-stream-action-recognition/UCF_list/",
+                        path=r"/mnt/disks/datastorage/videos/flownet2/",
+                        ucf_list =r"/home/mlp/two-stream-action-recognition/UCF_list/",
                         ucf_split='01',
                         in_channel=10,
                         )
@@ -61,13 +64,15 @@ def main():
                         lr=arg.lr,
                         batch_size=arg.batch_size,
                         channel = 10*2,
-                        test_video=test_video
+                        test_video=test_video,
+                        nb_classes=arg.nb_classes, # added the nb_classes
+                        finetune=arg.finetune
                         )
     #Training
     model.run()
 
 class Motion_CNN():
-    def __init__(self, nb_epochs, lr, batch_size, resume, start_epoch, evaluate, train_loader, test_loader, channel,test_video):
+    def __init__(self, nb_epochs, lr, batch_size, resume, start_epoch, evaluate, train_loader, test_loader, channel,test_video,nb_classes,finetune):
         self.nb_epochs=nb_epochs
         self.lr=lr
         self.batch_size=batch_size
@@ -79,11 +84,14 @@ class Motion_CNN():
         self.best_prec1=0
         self.channel=channel
         self.test_video=test_video
+        
+        self.nb_classes = nb_classes
+        self.finetune = finetune
 
     def build_model(self):
         print('==> Build model and setup loss and optimizer')
         #build model
-        self.model = resnet101(pretrained= True, channel=self.channel).cuda()
+        self.model = resnet101(pretrained= True, channel=3,nb_classes=self.nb_classes,p=0).cuda()
         #print self.model
         #Loss function and optimizer
         self.criterion = nn.CrossEntropyLoss().cuda()
@@ -95,12 +103,30 @@ class Motion_CNN():
             if os.path.isfile(self.resume):
                 print("==> loading checkpoint '{}'".format(self.resume))
                 checkpoint = torch.load(self.resume)
-                self.start_epoch = checkpoint['epoch']
-                self.best_prec1 = checkpoint['best_prec1']
-                self.model.load_state_dict(checkpoint['state_dict'])
-                self.optimizer.load_state_dict(checkpoint['optimizer'])
-                print("==> loaded checkpoint '{}' (epoch {}) (best_prec1 {})"
-                  .format(self.resume, checkpoint['epoch'], self.best_prec1))
+                ## to finetune, or to not fine, tis the question
+                if not self.finetune:
+                  print("In Resume Training Mode\n")
+                  self.start_epoch = checkpoint['epoch']
+                  self.best_prec1 = checkpoint['best_prec1']
+                  self.model.load_state_dict(checkpoint['state_dict'])
+                  self.optimizer.load_state_dict(checkpoint['optimizer'])
+                  print("==> loaded checkpoint '{}' (epoch {}) (best_prec1 {})".format(self.resume, checkpoint['epoch'], self.best_prec1))
+                # Add in new state dict
+                else:
+                  print("--In Finetune mode--")
+                  pretrained_dict = checkpoint['state_dict']
+                  new_model_dict = self.model.state_dict()
+                  
+                  print("Delete last layer weights")
+                  
+                  del pretrained_dict["fc_custom.weight"]
+                  del pretrained_dict["fc_custom.bias"]
+                  
+                  print("Update last layer weights with ImageNet pretrained weights")
+                  pretrained_dict["fc_custom.weight"] = new_model_dict["fc_custom.weight"].clone()
+                  pretrained_dict["fc_custom.bias"] = new_model_dict["fc_custom.bias"].clone()          
+                  print("Sanity Check On Number of Classes : ",pretrained_dict["fc_custom.weight"].size()[0])
+                  self.model.load_state_dict(pretrained_dict)
             else:
                 print("==> no checkpoint found at '{}'".format(self.resume))
         if self.evaluate:
@@ -159,8 +185,11 @@ class Motion_CNN():
             output = self.model(input_var)
             loss = self.criterion(output, target_var)
 
-            # measure accuracy and record loss
-            prec1, prec5 = accuracy(output.data, label, topk=(1, 5))
+            if self.nb_classes < 5:
+              topk=(1,2)
+            else:
+              topk=(1,5)
+            prec1, prec5 = accuracy(output.data, label, topk=topk)
             losses.update(loss.data.item(), data.size(0))
             top1.update(prec1.item(), data.size(0))
             top5.update(prec5.item(), data.size(0))
@@ -234,7 +263,7 @@ class Motion_CNN():
     def frame2_video_level_accuracy(self):
      
         correct = 0
-        video_level_preds = np.zeros((len(self.dic_video_level_preds),101))
+        video_level_preds = np.zeros((len(self.dic_video_level_preds),self.nb_classes))
         video_level_labels = np.zeros(len(self.dic_video_level_preds))
         ii=0
         for key in sorted(self.dic_video_level_preds.keys()):
@@ -254,7 +283,11 @@ class Motion_CNN():
         video_level_preds = torch.from_numpy(video_level_preds).float()
 
         loss = self.criterion(Variable(video_level_preds).cuda(), Variable(video_level_labels).cuda())    
-        top1,top5 = accuracy(video_level_preds, video_level_labels, topk=(1,5))     
+        if self.nb_classes < 5:
+          topk=(1,2)
+        else:
+          topk=(1,5)
+        top1,top5 = accuracy(video_level_preds, video_level_labels, topk=topk)   
                             
         top1 = float(top1.numpy())
         top5 = float(top5.numpy())

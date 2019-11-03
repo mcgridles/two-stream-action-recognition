@@ -7,6 +7,7 @@ from tqdm import tqdm
 import shutil
 from random import randint
 import argparse
+import re
 
 import torchvision.transforms as transforms
 import torchvision.models as models
@@ -42,7 +43,7 @@ def main():
     data_loader = dataloader.spatial_dataloader(
                         BATCH_SIZE=arg.batch_size,
                         num_workers=8,
-                        path=r"/mnt/disks/datastorage/jpegs_256/",
+                        path=r"/mnt/disks/datastorage/videos/rgb/",
                         ucf_list =r"/home/mlp/two-stream-action-recognition/UCF_list/",
                         ucf_split ='01', 
                         )
@@ -89,9 +90,26 @@ class Spatial_CNN():
         self.model = resnet101(pretrained= True, channel=3,nb_classes=self.nb_classes,p=0).cuda()
         #Loss function and optimizer
         self.criterion = nn.CrossEntropyLoss().cuda()
+        
+        
+        # if decide to free the layers ... 
+        #if self.finetune:
+        #  for name,param in self.model.named_parameters():
+        #    if re.search("fc_custom.*",name) is not None:
+        #      print("Only updating "+name+" Weights")
+        #      continue
+        #    else:
+        #      param.requires_grad = False;
+            
+        #  self.optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad,self.model.parameters()), self.lr, momentum=0.9)
+          
+        #else:
         self.optimizer = torch.optim.SGD(self.model.parameters(), self.lr, momentum=0.9)
+        
+        
+        
         #self.optimizer = torch.optim.Adam(self.model.parameters(),self.lr)
-        self.scheduler = ReduceLROnPlateau(self.optimizer, 'min', patience=3,verbose=True)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, 'min', patience=1,verbose=True)
     
     def resume_and_evaluate(self):
         if self.resume:
@@ -179,7 +197,7 @@ class Spatial_CNN():
             target_var = Variable(label).cuda()
 
             # compute output
-            output = Variable(torch.zeros(len(data_dict['img1']),101).float()).cuda()
+            output = Variable(torch.zeros(len(data_dict['img1']),self.nb_classes).float()).cuda()
 
             #MLP
             dic_len = len(data_dict)
@@ -193,7 +211,11 @@ class Spatial_CNN():
             loss = self.criterion(output, target_var)
 
             # measure accuracy and record loss
-            prec1, prec5 = accuracy(output.data, label, topk=(1, 5))
+            if self.nb_classes < 5:
+              topk=(1,2)
+            else:
+              topk=(1,5)
+            prec1, prec5 = accuracy(output.data, label, topk=topk)
             
             # MLP
             losses.update(loss.data.item(), data.size(0))
@@ -276,7 +298,7 @@ class Spatial_CNN():
     def frame2_video_level_accuracy(self):
             
         correct = 0
-        video_level_preds = np.zeros((len(self.dic_video_level_preds),101))
+        video_level_preds = np.zeros((len(self.dic_video_level_preds),self.nb_classes))
         video_level_labels = np.zeros(len(self.dic_video_level_preds))
         ii=0
         for name in sorted(self.dic_video_level_preds.keys()):
@@ -293,8 +315,11 @@ class Spatial_CNN():
         #top1 top5
         video_level_labels = torch.from_numpy(video_level_labels).long()
         video_level_preds = torch.from_numpy(video_level_preds).float()
-            
-        top1,top5 = accuracy(video_level_preds, video_level_labels, topk=(1,5))
+        if self.nb_classes < 5:
+          topk=(1,2)
+        else:
+          topk=(1,5)
+        top1,top5 = accuracy(video_level_preds, video_level_labels, topk=topk)
         loss = self.criterion(Variable(video_level_preds).cuda(), Variable(video_level_labels).cuda())     
         #loss = self.criterion(Variable(video_level_preds), Variable(video_level_labels))     
 

@@ -111,16 +111,21 @@ class spatial_dataloader():
             dic_frame = pickle.load(file)
         file.close()
 
-        for line in dic_frame :
+        for line in dic_frame:
             # extract just the video name i.e. "ApplyEyeMakeup_g10_c06
-            videoname = re.search("_.*\.",line)[0][1:-1]
-            
+            videoname = re.search("_.*\.",line)
+            if videoname is not None:
+              videoname = videoname[0][1:-1]
+            else:
+              videoname = line
+
             if re.search("HandstandPushups",videoname):
                 videoname = re.sub("stand","Stand",videoname)
             
             # dictionary of video : number of frames
             # i.e "ApplyLipstick_g02_c02" : 112
             self.frame_count[videoname]=dic_frame[line]
+        
 
     def run(self):
         self.load_frame_count()
@@ -200,7 +205,7 @@ class spatial_dataloader():
 
 if __name__ == '__main__':
     dataloader = spatial_dataloader(BATCH_SIZE=1, num_workers=1, 
-                                path=r"/mnt/disks/datastorage/jpegs_256/", 
+                                path=r"/mnt/disks/datastorage/videos/rgb/", 
                                 ucf_list=r"/home/mlp/two-stream-action-recognition/UCF_list/",
                                 ucf_split='01')
     train_loader,val_loader,test_video = dataloader.run()

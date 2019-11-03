@@ -106,9 +106,10 @@ class ResNet(nn.Module):
         self.inplanes = 64
         super(ResNet, self).__init__()
         
-        self.dropout = nn.Dropout(p=.7)
+        print("Dropout is ",p)
+        self.dropout = nn.Dropout(p=p)
         # dropout was .3
-        self.dropout2d = nn.Dropout2d(p=.3)
+        self.dropout2d = nn.Dropout2d(p=.1)
         
         self.conv1_custom = nn.Conv2d(channel, 64, kernel_size=7, stride=2, padding=3,   
                                bias=False)
@@ -155,22 +156,22 @@ class ResNet(nn.Module):
         x = self.layer1(x)
         
         # MLP 
-        #x = self.dropout2d(x)
+        x = self.dropout2d(x)
         
         x = self.layer2(x)
         
         # MLP
-        #x = self.dropout2d(x)
+        x = self.dropout2d(x)
         
         x = self.layer3(x)
         
         # MLP
-        #x = self.dropout2d(x)
+        x = self.dropout2d(x)
         
         x = self.layer4(x)
         
         # MLP
-        #self.dropout2d(x)
+        # self.dropout2d(x)
         
         # MLP
         x = self.avgpool(x)
