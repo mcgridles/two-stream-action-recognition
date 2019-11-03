@@ -36,9 +36,9 @@ class SpatialCNN:
         with TimerBlock('Building spatial model') as block:
             # Build model
             if self.args.cuda and self.args.number_gpus > 0:
-                self.model = resnet101(pretrained=True, channel=3).cuda()
+                self.model = resnet101(pretrained=True, channel=3, nb_classes=self.args.nb_classes).cuda()
             else:
-                self.model = resnet101(pretrained=True, channel=3)
+                self.model = resnet101(pretrained=True, channel=3, nb_classes=self.args.nb_classes)
 
             # Load weights
             if os.path.isfile(self.weights):
@@ -110,9 +110,9 @@ class MotionCNN:
         with TimerBlock('Building temporal model') as block:
             # Build model
             if self.args.cuda and self.args.number_gpus > 0:
-                self.model = resnet101(pretrained=True, channel=20).cuda()
+                self.model = resnet101(pretrained=True, channel=20, nb_classes=self.args.nb_classes).cuda()
             else:
-                self.model = resnet101(pretrained=True, channel=20)
+                self.model = resnet101(pretrained=True, channel=20, nb_classes=self.args.nb_classes)
 
             if os.path.isfile(self.weights):
                 block.log("Loading weights '{}'".format(self.weights))

@@ -72,7 +72,8 @@ def main():
     model.run()
 
 class Motion_CNN():
-    def __init__(self, nb_epochs, lr, batch_size, resume, start_epoch, evaluate, train_loader, test_loader, channel,test_video,nb_classes,finetune):
+    def __init__(self, nb_epochs, lr, batch_size, resume, start_epoch, evaluate, train_loader, test_loader, 
+                 channel, test_video, nb_classes, finetune):
         self.nb_epochs=nb_epochs
         self.lr=lr
         self.batch_size=batch_size
@@ -85,6 +86,9 @@ class Motion_CNN():
         self.channel=channel
         self.test_video=test_video
         
+        self.nb_classes = nb_classes
+        self.finetune = finetune
+
         self.nb_classes = nb_classes
         self.finetune = finetune
 
@@ -103,30 +107,29 @@ class Motion_CNN():
             if os.path.isfile(self.resume):
                 print("==> loading checkpoint '{}'".format(self.resume))
                 checkpoint = torch.load(self.resume)
-                ## to finetune, or to not fine, tis the question
+
                 if not self.finetune:
-                  print("In Resume Training Mode\n")
-                  self.start_epoch = checkpoint['epoch']
-                  self.best_prec1 = checkpoint['best_prec1']
-                  self.model.load_state_dict(checkpoint['state_dict'])
-                  self.optimizer.load_state_dict(checkpoint['optimizer'])
-                  print("==> loaded checkpoint '{}' (epoch {}) (best_prec1 {})".format(self.resume, checkpoint['epoch'], self.best_prec1))
-                # Add in new state dict
+                    self.start_epoch = checkpoint['epoch']
+                    self.best_prec1 = checkpoint['best_prec1']
+                    self.model.load_state_dict(checkpoint['state_dict'])
+                    self.optimizer.load_state_dict(checkpoint['optimizer'])
                 else:
-                  print("--In Finetune mode--")
-                  pretrained_dict = checkpoint['state_dict']
-                  new_model_dict = self.model.state_dict()
-                  
-                  print("Delete last layer weights")
-                  
-                  del pretrained_dict["fc_custom.weight"]
-                  del pretrained_dict["fc_custom.bias"]
-                  
-                  print("Update last layer weights with ImageNet pretrained weights")
-                  pretrained_dict["fc_custom.weight"] = new_model_dict["fc_custom.weight"].clone()
-                  pretrained_dict["fc_custom.bias"] = new_model_dict["fc_custom.bias"].clone()          
-                  print("Sanity Check On Number of Classes : ",pretrained_dict["fc_custom.weight"].size()[0])
-                  self.model.load_state_dict(pretrained_dict)
+                    # Add in new state dict
+                    print("==> finetune mode")
+                    pretrained_dict = checkpoint['state_dict']
+                    new_model_dict = self.model.state_dict()
+
+                    del pretrained_dict["fc_custom.weight"]
+                    del pretrained_dict["fc_custom.bias"]
+                    pretrained_dict["fc_custom.weight"] = new_model_dict["fc_custom.weight"].clone()
+                    pretrained_dict["fc_custom.bias"] = new_model_dict["fc_custom.bias"].clone()   
+                    self.model.load_state_dict(pretrained_dict)
+
+                assert self.model.state_dict()['fc_custom.weight'].size()[0] == self.nb_classes
+                print("==> loaded checkpoint '{}' (epoch {}) (best_prec1 {}) (classes {})".format(self.resume, 
+                                                                                                  checkpoint['epoch'], 
+                                                                                                  self.best_prec1, 
+                                                                                                  self.nb_classes))
             else:
                 print("==> no checkpoint found at '{}'".format(self.resume))
         if self.evaluate:
