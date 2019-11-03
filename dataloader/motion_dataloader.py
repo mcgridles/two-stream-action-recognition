@@ -116,11 +116,22 @@ class Motion_DataLoader():
         file.close()
 
         for line in dic_frame :
-            videoname = line.split('_',1)[1].split('.',1)[0]
-            n,g = videoname.split('_',1)
+            # old stuff...
+            #videoname = line.split('_',1)[1].split('.',1)[0]
+            #n,g = videoname.split('_',1)
             # MLP
-            if n == 'HandstandPushups':
-                videoname = 'HandStandPushups_'+ g
+            #if n == 'HandstandPushups':
+            #    videoname = 'HandStandPushups_'+ g
+                
+            # extract just the video name i.e. "ApplyEyeMakeup_g10_c06
+            videoname = re.search("_.*\.",line)
+            if videoname is not None:
+              videoname = videoname[0][1:-1]
+            else:
+              videoname = line
+
+            if re.search("HandstandPushups",videoname):
+                videoname = re.sub("stand","Stand",videoname)
                 
             self.frame_count[videoname]=dic_frame[line] 
 
