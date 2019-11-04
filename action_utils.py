@@ -108,8 +108,7 @@ class TimerBlock:
         if exc_type is not None:
             self.log("Operation failed\n")
         else:
-            if self.print_logs:
-                self.log("Operation finished\n")
+            self.log("Operation finished\n")
 
     def log(self, string):
         if self.print_logs:
