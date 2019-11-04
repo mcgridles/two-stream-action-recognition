@@ -93,8 +93,9 @@ class TimerBlock:
     From FlowNet2-PyTorch repo.
     """
 
-    def __init__(self, title):
+    def __init__(self, title, print_logs=True):
         print(("{}".format(title)))
+        self.print_logs = print_logs
 
     def __enter__(self):
         self.start = time.clock()
@@ -107,15 +108,17 @@ class TimerBlock:
         if exc_type is not None:
             self.log("Operation failed\n")
         else:
-            self.log("Operation finished\n")
+            if self.print_logs:
+                self.log("Operation finished\n")
 
     def log(self, string):
-        duration = time.clock() - self.start
-        units = 's'
-        if duration > 60:
-            duration = duration / 60.
-            units = 'm'
-        print(("  [{:.3f}{}] {}".format(duration, units, string)))
+        if self.print_logs:
+            duration = time.clock() - self.start
+            units = 's'
+            if duration > 60:
+                duration = duration / 60.
+                units = 'm'
+            print(("  [{:.3f}{}] {}".format(duration, units, string)))
     
     def log2file(self, fid, string):
         fid = open(fid, 'a')
