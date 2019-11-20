@@ -53,7 +53,8 @@ class SpatialCNN:
                 block.log("No checkpoint found at '{}'".format(self.weights))
                 exit(1)
 
-            self.model.eval()
+            #self.model.eval()
+            self.model.train()
 
     def run_async(self, img_queue, pred_queue):
         with TimerBlock('Starting spatial network') as block:
@@ -68,7 +69,7 @@ class SpatialCNN:
                 pred_queue.put(preds)
 
     def run(self, img):
-        img = np.resize(img, self.img_size)
+#         img = np.resize(img, self.img_size)
         img = self.transform(img).unsqueeze(0)
 
         with torch.no_grad():
@@ -126,7 +127,8 @@ class MotionCNN:
                 block.log("No checkpoint found at '{}'".format(self.weights))
                 exit(1)
 
-            self.model.eval()
+            #self.model.eval()
+            self.model.train()
 
     def run_async(self, flow_queue, pred_queue):
         with TimerBlock('Starting temporal network') as block:
@@ -140,10 +142,11 @@ class MotionCNN:
                 preds = self.run(flow)
                 pred_queue.put(preds)
 
-    def run(self, flow):
-        flow = np.resize(flow, self.img_size)
-        for i in range(flow.shape[0]):
-            flow[i,:,:] = self.transform(np.uint8(flow[i,:,:]))
+    def run(self, of):
+#         flow = np.resize(flow, self.img_size)
+        flow = torch.FloatTensor(2*10,img_rows,img_cols)
+        for i in range(of.shape[0]):
+            flow[i,:,:] = self.transform(np.uint8(of[i,:,:]))
         flow = torch.from_numpy(flow).unsqueeze(0)
         flow = flow.type(torch.FloatTensor)
 
