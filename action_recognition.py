@@ -1,4 +1,5 @@
 import os
+import time
 import torch
 import torchvision.transforms as transforms
 
@@ -22,10 +23,12 @@ class SpatialCNN:
         self.weights = args.spatial_weights
         self.img_size = list(args.image_size[:2]) + [3]
         self.args = args
+        self.rgb = torch.FloatTensor(11, 3, 224, 224)
+        self.frame_idx = 0
 
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize(224,224),
+            transforms.Resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])
             ])
@@ -36,6 +39,7 @@ class SpatialCNN:
         with TimerBlock('Building spatial model') as block:
             # Build model
             if self.args.cuda and self.args.number_gpus > 0:
+                block.log('Initializing CUDA')
                 self.model = resnet101(pretrained=True, channel=3, nb_classes=self.args.nb_classes).cuda()
             else:
                 self.model = resnet101(pretrained=True, channel=3, nb_classes=self.args.nb_classes)
@@ -48,13 +52,12 @@ class SpatialCNN:
 
                 epoch = checkpoint['epoch']
                 best_prec = checkpoint['best_prec1']
-                block.log("Loaded checkpoint '{}' (epoch {}) (best_prec {})".format(self.weights, epoch, best_prec))
+                block.log("Loaded checkpoint '{}' (epoch {}) (best_prec {})".format(self.weights, epoch, round(best_prec, 2)))
             else:
                 block.log("No checkpoint found at '{}'".format(self.weights))
                 exit(1)
 
-            #self.model.eval()
-            self.model.train()
+            self.model.eval()
 
     def run_async(self, img_queue, pred_queue):
         with TimerBlock('Starting spatial network') as block:
@@ -69,17 +72,25 @@ class SpatialCNN:
                 pred_queue.put(preds)
 
     def run(self, img):
-#         img = np.resize(img, self.img_size)
-        img = self.transform(img).unsqueeze(0)
+        self.rgb[-1, :, :, :] = self.transform(img)
+        preds = None
+        
+        if self.frame_idx >= 10:
+            with torch.no_grad():
+                img = self.rgb[0, :, :, :].unsqueeze(0)
+                if self.args.cuda and self.args.number_gpus > 0:
+                    img = img.cuda()
 
-        with torch.no_grad():
-            if self.args.cuda and self.args.number_gpus > 0:
-                img = img.cuda()
-
-            output = self.model(img)
-            preds = output.data.cpu().numpy()
-
+                output = self.model(img)
+                preds = output.data.cpu().numpy()
+                
+        self.rgb = self.roll_tensor(-1)
+        self.frame_idx += 1
+        
         return preds
+    
+    def roll_tensor(self, n):
+        return torch.cat((self.rgb[-n:, :, :], self.rgb[:-n, :, :]))
 
 
 class MotionCNN:
@@ -98,10 +109,12 @@ class MotionCNN:
         self.weights = args.motion_weights
         self.img_size = [20] + list(args.image_size[:2])
         self.args = args
-
+        self.flow = torch.FloatTensor(2*10, 224, 224)
+        self.frame_idx = 0
+        
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize(224,224),
+            transforms.Resize((224,224)),
             transforms.ToTensor(),
             ])
 
@@ -111,6 +124,7 @@ class MotionCNN:
         with TimerBlock('Building temporal model') as block:
             # Build model
             if self.args.cuda and self.args.number_gpus > 0:
+                block.log('Initializing CUDA')
                 self.model = resnet101(pretrained=True, channel=20, nb_classes=self.args.nb_classes).cuda()
             else:
                 self.model = resnet101(pretrained=True, channel=20, nb_classes=self.args.nb_classes)
@@ -122,13 +136,12 @@ class MotionCNN:
 
                 epoch = checkpoint['epoch']
                 best_prec = checkpoint['best_prec1']
-                block.log("Loaded checkpoint '{}' (epoch {}) (best_prec1 {})".format(self.weights, epoch, best_prec))
+                block.log("Loaded checkpoint '{}' (epoch {}) (best_prec1 {})".format(self.weights, epoch, round(best_prec, 2)))
             else:
                 block.log("No checkpoint found at '{}'".format(self.weights))
                 exit(1)
 
-            #self.model.eval()
-            self.model.train()
+            self.model.eval()
 
     def run_async(self, flow_queue, pred_queue):
         with TimerBlock('Starting temporal network') as block:
@@ -143,18 +156,23 @@ class MotionCNN:
                 pred_queue.put(preds)
 
     def run(self, of):
-#         flow = np.resize(flow, self.img_size)
-        flow = torch.FloatTensor(2*10,img_rows,img_cols)
-        for i in range(of.shape[0]):
-            flow[i,:,:] = self.transform(np.uint8(of[i,:,:]))
-        flow = torch.from_numpy(flow).unsqueeze(0)
-        flow = flow.type(torch.FloatTensor)
+        self.flow[-2, :, :] = self.transform(of[0])
+        self.flow[-1, :, :] = self.transform(of[1])
+        preds = None
+        
+        if self.frame_idx >= 9:
+            with torch.no_grad():
+                flow = self.flow.unsqueeze(0)
+                if self.args.cuda and self.args.number_gpus > 0:
+                    flow = flow.cuda()
 
-        with torch.no_grad():
-            if self.args.cuda and self.args.number_gpus > 0:
-                flow = flow.cuda()
-
-            output = self.model(flow)
-            preds = output.data.cpu().numpy()
+                output = self.model(flow)
+                preds = output.data.cpu().numpy()
+        
+        self.flow = self.roll_tensor(-2)
+        self.frame_idx += 1
 
         return preds
+    
+    def roll_tensor(self, n):
+        return torch.cat((self.flow[-n:, :, :], self.flow[:-n, :, :]))
