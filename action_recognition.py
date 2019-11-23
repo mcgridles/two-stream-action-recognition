@@ -7,6 +7,12 @@ from action_utils import *
 from network import *
 
 
+class AddTransform(object):
+    
+    def __call__(self, x):
+        return x / 255 + 128./255
+    
+
 class SpatialCNN:
     """
     Spatial network for two stream action recognition.
@@ -116,6 +122,7 @@ class MotionCNN:
             transforms.ToPILImage(),
             transforms.Resize((224,224)),
             transforms.ToTensor(),
+            AddTransform()
             ])
 
         self.load()
