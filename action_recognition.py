@@ -65,19 +65,7 @@ class SpatialCNN:
 
             self.model.eval()
 
-    def run_async(self, img_queue, pred_queue):
-        with TimerBlock('Starting spatial network') as block:
-            while True:
-                img = img_queue.get(block=True)
-                if type(img) != np.ndarray:
-                    # Break out of loop when signal received
-                    block.log('Spatial network exiting')
-                    break
-
-                preds = self.run(img)
-                pred_queue.put(preds)
-
-    def run(self, img):
+    def __call__(self, img):
         self.rgb[-1, :, :, :] = self.transform(img)
         preds = None
         
@@ -150,19 +138,7 @@ class MotionCNN:
 
             self.model.eval()
 
-    def run_async(self, flow_queue, pred_queue):
-        with TimerBlock('Starting temporal network') as block:
-            while True:
-                flow = flow_queue.get(block=True)
-                if type(flow) != np.ndarray:
-                    # Break out of loop when signal received
-                    block.log('Temporal network exiting')
-                    break
-
-                preds = self.run(flow)
-                pred_queue.put(preds)
-
-    def run(self, of):
+    def __call__(self, of):
         self.flow[-2, :, :] = self.transform(of[0])
         self.flow[-1, :, :] = self.transform(of[1])
         preds = None
