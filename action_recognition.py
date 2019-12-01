@@ -65,7 +65,7 @@ class SpatialCNN:
 
             self.model.eval()
 
-    def run(self, img):
+    def __call__(self, img):
         self.rgb[-1, :, :, :] = self.transform(img)
         preds = None
         
@@ -138,7 +138,7 @@ class MotionCNN:
 
             self.model.eval()
 
-    def run(self, of):
+    def __call__(self, of):
         self.flow[-2, :, :] = self.transform(of[0])
         self.flow[-1, :, :] = self.transform(of[1])
         preds = None
