@@ -106,9 +106,7 @@ class ResNet(nn.Module):
         self.inplanes = 64
         super(ResNet, self).__init__()
         
-        print("Dropout is ",p)
         self.dropout = nn.Dropout(p=p)
-        # dropout was .3
         self.dropout2d = nn.Dropout2d(p=.1)
         
         self.conv1_custom = nn.Conv2d(channel, 64, kernel_size=7, stride=2, padding=3,   
